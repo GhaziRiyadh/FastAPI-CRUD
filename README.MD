@@ -31,7 +31,8 @@ A powerful, production-ready FastAPI boilerplate with automatic CRUD API generat
 ```bash
 git clone <your-repo-url>
 cd my-api
-pip install -r requirements.txt
+pip install poetry
+poetry install --no-root
 ```
 
 2. **Setup database:**
