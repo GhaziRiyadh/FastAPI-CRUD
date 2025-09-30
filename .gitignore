@@ -1,0 +1,19 @@
+
+
+.env
+
+# vscode
+.vscode
+
+.idea
+
+
+# environment
+.venv
+
+*/**/__pycache__/
+*/**/*.pyc
+*/**/*.pyo
+
+poetry.lock
+
