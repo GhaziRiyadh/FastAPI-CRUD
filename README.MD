@@ -44,12 +44,12 @@ cp .env.example .env
 
 3. **Create your first API:**
 ```bash
-python src/core/cli.py full blog Post -f "title:str,content:str,author:str"
+python cli.py full blog Post -f "title:str,content:str,author:str"
 ```
 
 4. **Run the server:**
 ```bash
-python main.py
+poetry run fastapi dev src/main.py --host 0.0.0.0 
 ```
 
 Visit **http://localhost:8000/docs** to see your auto-generated API documentation!
@@ -60,27 +60,27 @@ Visit **http://localhost:8000/docs** to see your auto-generated API documentatio
 
 ```bash
 # Create a blog app with Post model
-python src/core/cli.py full blog Post -f "title:str,content:str,author:str"
+python cli.py full blog Post -f "title:str,content:str,author:str"
 
 # Add more models to existing app
-python src/core/cli.py model blog Comment -f "content:str,post_id:int,author:str"
-python src/core/cli.py model blog Category -f "name:str,description:str"
+python cli.py model blog Comment -f "content:str,post_id:int,author:str"
+python cli.py model blog Category -f "name:str,description:str"
 ```
 
 ### Step-by-Step Creation
 
 ```bash
 # Create app structure first
-python src/core/cli.py app_create blog
+python cli.py app_create blog
 
 # Then add models
-python src/core/cli.py model blog Post -f "title:str,content:str"
+python cli.py model blog Post -f "title:str,content:str"
 ```
 
 ### List Existing Apps
 
 ```bash
-python src/core/cli.py list_apps
+python cli.py list_apps
 ```
 
 ## 🎯 Generated API Endpoints
@@ -235,9 +235,9 @@ We welcome contributions! Please feel free to submit pull requests or open issue
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## 📄 License
+<!-- ## 📄 License -->
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+<!-- This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details. -->
 
 ## 🙏 Acknowledgments
 
@@ -255,6 +255,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ### Built with ❤️ using FastAPI and SQLModel
 
-[**Documentation**](#) • [**Examples**](#) • [**Report Bug**](#) • [**Request Feature**](#)
+<!-- [**Documentation**](#) • [**Examples**](#) • [**Report Bug**](#) • [**Request Feature**](#) -->
 
 </div>
