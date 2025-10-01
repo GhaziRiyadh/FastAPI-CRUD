@@ -1,24 +1,20 @@
 from fastapi import Query
 from pydantic import BaseModel, Field
-from typing import Generic, List, TypeVar, Optional
-
-from sqlmodel import SQLModel
-
-T = TypeVar("T", bound=SQLModel)
+from typing import Any, List, Optional
 
 
-class BaseResponse(BaseModel, Generic[T]):
+class BaseResponse(BaseModel):
     success: bool = True
     message: Optional[str] = Field(default=None)
-    data: Optional[T] = None
+    data: Any = None
 
 
-class PaginatedResponse(BaseResponse, Generic[T]):
+class PaginatedResponse(BaseResponse):
     total: int = Field(default=0)
     page: int = Field(default=1)
     per_page: int = Field(default=100)
     pages: int = Field(default=1)
-    data: List[T] = []
+    data: List[Any] = []
 
 
 class ErrorDetail(BaseModel):

@@ -438,7 +438,7 @@ def format_exception_response(exception: BaseAPIException) -> Dict[str, Any]:
     
     if exception.error_details:
         response["error_details"] = [
-            detail.dict() for detail in exception.error_details
+            detail.model_dump() for detail in exception.error_details
         ]
     
     return response

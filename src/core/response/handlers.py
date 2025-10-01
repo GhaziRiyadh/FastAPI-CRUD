@@ -4,6 +4,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from jwt import ExpiredSignatureError
+from sqlmodel import SQLModel
 
 from .. import exceptions
 
@@ -16,6 +17,8 @@ def success_response(
     status_code: int = status.HTTP_200_OK,
 ) -> JSONResponse:
     """Return a successful response."""
+    if isinstance(data,SQLModel):
+        data = data.model_dump()
     response = schemas.BaseResponse(success=True, message=message, data=data)
     return JSONResponse(content=jsonable_encoder(response), status_code=status_code)
 
@@ -56,7 +59,7 @@ def error_response(
         message=message,
         error_details=error_details,
     )
-    return JSONResponse(content=response.dict(), status_code=status_code)
+    return JSONResponse(content=response.model_dump(), status_code=status_code)
 
 
 def exception_to_error_response(exception: exceptions.BaseAPIException) -> JSONResponse:
@@ -65,7 +68,7 @@ def exception_to_error_response(exception: exceptions.BaseAPIException) -> JSONR
         error_code=exception.error_code,
         message=exception.detail,
         status_code=exception.status_code,
-        details=[detail.dict() for detail in exception.error_details]
+        details=[detail.model_dump() for detail in exception.error_details]
     )
 
 
@@ -90,7 +93,7 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
             error_code="VALIDATION_ERROR",
             message="Request validation failed",
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            details=[detail.dict() for detail in error_details]
+            details=[detail.model_dump() for detail in error_details]
         )
     
     # Handle JWT token expiration

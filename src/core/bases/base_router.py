@@ -5,6 +5,8 @@ from pydantic import BaseModel, create_model
 from src.core.bases.base_service import BaseService
 from src.core.response.handlers import success_response, paginated_response, error_response
 from src.core import exceptions
+from src.core.schemas.fields import DynamicFormConfig, ModelDefinition
+from src.core.services.field_service import FieldService
 
 
 # Schema type definitions for dynamic model creation
@@ -63,6 +65,7 @@ class BaseRouter:
         self._register_force_delete()
         self._register_count()
         self._register_exists()
+        self._register_field_routes()
     
     def _register_get_by_id(self) -> None:
         """Register GET /{item_id} route."""
@@ -171,14 +174,14 @@ class BaseRouter:
                     error_code="VALIDATION_ERROR",
                     message=str(e.detail),
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    details=[detail.dict() for detail in e.error_details]
+                    details=[detail.model_dump() for detail in e.error_details]
                 )
             except exceptions.ConflictException as e:
                 return error_response(
                     error_code="CONFLICT",
                     message=str(e.detail),
                     status_code=status.HTTP_409_CONFLICT,
-                    details=[detail.dict() for detail in e.error_details]
+                    details=[detail.model_dump() for detail in e.error_details]
                 )
             except exceptions.ServiceException as e:
                 return error_response(
@@ -223,7 +226,7 @@ class BaseRouter:
                     error_code="VALIDATION_ERROR",
                     message=str(e.detail),
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    details=[detail.dict() for detail in e.error_details]
+                    details=[detail.model_dump() for detail in e.error_details]
                 )
             except exceptions.ServiceException as e:
                 return error_response(
@@ -405,3 +408,100 @@ class BaseRouter:
     def get_router(self) -> APIRouter:
         """Get the FastAPI router instance."""
         return self.router
+    
+    def _register_field_routes(self):
+        """Register dynamic field definition routes."""
+        
+        @self.router.get(
+            "/model/fields",
+            summary="Get model field definitions",
+            response_model=ModelDefinition
+        )
+        async def get_model_fields():
+            """Get complete field definitions for dynamic frontend."""
+            try:
+                model_class = self.service.repository.model
+                field_def = FieldService.get_model_definition(model_class)
+                return success_response(
+                    data=field_def.model_dump(),
+                    message=f"Field definitions for {model_class.__name__} retrieved successfully"
+                )
+            except Exception as e:
+                return error_response(
+                    error_code="FIELD_DEFINITION_ERROR",
+                    message=f"Error retrieving field definitions: {str(e)}",
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+        
+        @self.router.get(
+            "/model/form-config",
+            summary="Get dynamic form configuration",
+            response_model=DynamicFormConfig
+        )
+        async def get_form_config():
+            """Get form configuration for dynamic frontend forms."""
+            try:
+                model_class = self.service.repository.model
+                form_config = FieldService.get_dynamic_form_config(model_class)
+                return success_response(
+                    data=form_config.model_dump(),
+                    message=f"Form configuration for {model_class.__name__} retrieved successfully"
+                )
+            except Exception as e:
+                return error_response(
+                    error_code="FORM_CONFIG_ERROR",
+                    message=f"Error retrieving form configuration: {str(e)}",
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+        
+        @self.router.get(
+            "/model/schemas",
+            summary="Get model schemas for frontend"
+        )
+        async def get_model_schemas():
+            """Get create and update schemas for frontend validation."""
+            try:
+                model_class = self.service.repository.model
+                model_def = FieldService.get_model_definition(model_class)
+                
+                # Generate schema definitions
+                create_schema = {}
+                update_schema = {}
+                
+                for field in model_def.fields:
+                    # Skip internal fields in create/update schemas
+                    if field.name in ['id', 'created_at', 'updated_at', 'is_deleted']:
+                        continue
+                    
+                    field_def = {
+                        'type': field.type.value,
+                        'required': field.is_required and field.name not in ['id', 'created_at', 'updated_at']
+                    }
+                    
+                    if field.default_value is not None:
+                        field_def['default'] = field.default_value
+                    
+                    # Create schema (all required fields)
+                    create_schema[field.name] = field_def
+                    
+                    # Update schema (all fields optional)
+                    update_field_def = field_def.copy()
+                    update_field_def['required'] = False
+                    update_schema[field.name] = update_field_def
+                
+                schemas = {
+                    'create_schema': create_schema,
+                    'update_schema': update_schema,
+                    'model_name': model_def.model_name
+                }
+                
+                return success_response(
+                    data=schemas,
+                    message=f"Schemas for {model_def.model_name} retrieved successfully"
+                )
+            except Exception as e:
+                return error_response(
+                    error_code="SCHEMA_ERROR",
+                    message=f"Error retrieving schemas: {str(e)}",
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
