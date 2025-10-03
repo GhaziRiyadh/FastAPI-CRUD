@@ -66,6 +66,8 @@ class BaseRouter:
         self._register_count()
         self._register_exists()
         self._register_field_routes()
+        self._register_bulk_create()
+        self._register_bulk_update()
     
     def _register_get_by_id(self) -> None:
         """Register GET /{item_id} route."""
@@ -383,6 +385,101 @@ class BaseRouter:
                     message=str(e.detail),
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
+            
+    def _register_bulk_create(self) -> None:
+        """Register POST /bulk route for bulk creation."""
+        if not self.create_schema:
+            return
+        
+        BulkCreateSchema = List[self.create_schema]  # type: ignore
+        
+        @self.router.post(
+            "/bulk",
+            status_code=status.HTTP_201_CREATED,
+            summary="Bulk create items",
+            responses={
+                201: {"description": "Items created successfully"},
+                400: {"description": "Bad request"},
+                422: {"description": "Validation error"},
+                500: {"description": "Internal server error"}
+            }
+        )
+        async def bulk_create_items(
+            items_data: BulkCreateSchema,  # type: ignore
+            request: Request
+        ):
+            try:
+                result = await self.service.bulk_create(items_data)
+                return success_response(
+                    data=result["data"],
+                    message=result["message"],
+                    status_code=status.HTTP_201_CREATED
+                )
+            except exceptions.ValidationException as e:
+                return error_response(
+                    error_code="VALIDATION_ERROR",
+                    message=str(e.detail),
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    details=[detail.model_dump() for detail in e.error_details]
+                )
+            except exceptions.ConflictException as e:
+                return error_response(
+                    error_code="CONFLICT",
+                    message=str(e.detail),
+                    status_code=status.HTTP_409_CONFLICT,
+                    details=[detail.model_dump() for detail in e.error_details]
+                )
+            except exceptions.ServiceException as e:
+                return error_response(
+                    error_code="SERVICE_ERROR",
+                    message=str(e.detail),
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+            
+    def _register_bulk_update(self) -> None:
+        """Register PUT /bulk route for bulk updates."""
+        if not self.update_schema:
+            return
+        
+        class BulkUpdateItem(BaseModel):
+            id: int
+            data: self.update_schema  # type: ignore
+        
+        BulkUpdateSchema = List[BulkUpdateItem]
+        
+        @self.router.put(
+            "/bulk",
+            summary="Bulk update items",
+            responses={
+                200: {"description": "Items updated successfully"},
+                400: {"description": "Bad request"},
+                422: {"description": "Validation error"},
+                500: {"description": "Internal server error"}
+            }
+        )
+        async def bulk_update_items(
+            items_data: BulkUpdateSchema  # type: ignore
+        ):
+            try:
+                update_list = [{"id": item.id, "data": item.data} for item in items_data]
+                result = await self.service.bulk_update(update_list) # type: ignore
+                return success_response(
+                    data=result["data"],
+                    message=result["message"]
+                )
+            except exceptions.ValidationException as e:
+                return error_response(
+                    error_code="VALIDATION_ERROR",
+                    message=str(e.detail),
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    details=[detail.model_dump() for detail in e.error_details]
+                )
+            except exceptions.ServiceException as e:
+                return error_response(
+                    error_code="SERVICE_ERROR",
+                    message=str(e.detail),
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
     
     # Additional utility methods for custom routes
     def add_custom_route(
@@ -408,6 +505,7 @@ class BaseRouter:
     def get_router(self) -> APIRouter:
         """Get the FastAPI router instance."""
         return self.router
+        
     
     def _register_field_routes(self):
         """Register dynamic field definition routes."""

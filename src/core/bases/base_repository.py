@@ -19,6 +19,8 @@ class RepositoryError(Exception):
 
 class BaseRepository(Generic[T]):
     model: Type[T]
+    _options: List[Any] = []
+    get_session: Callable[..., AsyncSession]
 
     def __init__(self, get_session: Callable[..., AsyncSession]):
         self.get_session = get_session
@@ -36,7 +38,7 @@ class BaseRepository(Generic[T]):
 
     def _build_select_stmt(self, include_deleted: bool = False, **filters) -> Any:
         """Build select statement with optional filters and soft delete handling."""
-        stmt = select(self.model)
+        stmt = select(self.model).options(*self._options)
 
         # Apply soft delete filter if applicable
         if not include_deleted and hasattr(self.model, "is_deleted"):
@@ -229,7 +231,7 @@ class BaseRepository(Generic[T]):
         """Check if an item exists."""
         async with self.get_session() as db:
             try:
-                stmt = select(self.model.id).where(self.model.id == item_id)  # type: ignore
+                stmt = select(self.model.id).where(self.model.id == item_id).options(*self._options)  # type: ignore
                 if not include_deleted and hasattr(self.model, "is_deleted"):
                     stmt = stmt.where(self.model.is_deleted == False)  # type: ignore
 
@@ -310,7 +312,7 @@ class BaseRepository(Generic[T]):
         async with self.get_session() as db:
             try:
                 result = await db.exec(
-                    select(self.model).where(self.model.id.in_(item_ids))  # type: ignore
+                    select(self.model).where(self.model.id.in_(item_ids)).options(*self._options)  # type: ignore
                 )
                 objects = result.all()
 
@@ -322,3 +324,30 @@ class BaseRepository(Generic[T]):
             except SQLAlchemyError as e:
                 await db.rollback()
                 self._handle_db_error(e, "force_delete_many")
+
+    async def bulk_create(self, items: List[T]) -> List[T]:  # type:ignore
+        """Bulk create items."""
+        async with self.get_session() as db:
+            try:
+                db.add_all(items)
+                await db.commit()
+                for item in items:
+                    await db.refresh(item)
+                return items
+            except SQLAlchemyError as e:
+                await db.rollback()
+                self._handle_db_error(e, "bulk_create")
+
+    async def bulk_update(self, items: List[T]) -> List[T]:  # type:ignore
+        """Bulk update items."""
+        async with self.get_session() as db:
+            try:
+                for item in items:
+                    await db.merge(item)
+                await db.commit()
+                for item in items:
+                    await db.refresh(item)
+                return items
+            except SQLAlchemyError as e:
+                await db.rollback()
+                self._handle_db_error(e, "bulk_update")

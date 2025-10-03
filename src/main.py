@@ -11,6 +11,7 @@ from src.core.config import settings
 # Import routers from apps
 from src.apps.blog import post_router
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup: Create database tables
@@ -42,29 +43,23 @@ app.add_middleware(
 # Add global exception handler
 app.add_exception_handler(Exception, global_exception_handler)
 
+
 # Health check endpoint
 @app.get("/", tags=["Health"])
 async def root():
     """Root endpoint with health check."""
-    return {
-        "message": "🚀 Server is running!",
-        "status": "healthy",
-        "version": "1.0.0"
-    }
+    return {"message": "🚀 Server is running!", "status": "healthy", "version": "1.0.0"}
 
 
 @app.get("/health", tags=["Health"])
 async def health_check():
     """Health check endpoint."""
-    return {
-        "status": "healthy",
-        "message": "Service is running normally"
-    }
+    return {"status": "healthy", "message": "Service is running normally"}
 
 
 # Include app routers
 # Note: These routers will be automatically imported from apps created by the CLI
-app.include_router(post_router, prefix="/api/v1")
+app.include_router(post_router)
 
 # You can add more routers here as you create new apps
 # app.include_router(other_app_router, prefix="/api/v1")
@@ -76,5 +71,5 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8000,
         reload=True,  # Enable auto-reload in development
-        log_level="info"
+        log_level="info",
     )
