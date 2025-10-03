@@ -69,8 +69,7 @@ class BaseRouter:
         self._register_force_delete()
         self._register_count()
         self._register_exists()
-        self._register_bulk_create()
-        self._register_bulk_update()
+        self._register_bulk_actions()
         self._register_field_routes()
 
     def _register_get_by_id(self) -> None:
@@ -130,7 +129,10 @@ class BaseRouter:
         ):
             try:
                 result = await self.service.get_list(
-                    page=page, per_page=per_page, include_deleted=include_deleted,query=query
+                    page=page,
+                    per_page=per_page,
+                    include_deleted=include_deleted,
+                    query=query,
                 )
                 return paginated_response(
                     items=result["items"],
@@ -368,7 +370,7 @@ class BaseRouter:
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 )
 
-    def _register_bulk_create(self) -> None:
+    def _register_bulk_actions(self) -> None:
         """Register POST /bulk route for bulk creation."""
         if not self.create_schema:
             return
@@ -417,8 +419,6 @@ class BaseRouter:
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 )
 
-    def _register_bulk_update(self) -> None:
-        """Register PUT /bulk route for bulk updates."""
         if not self.update_schema:
             return
 
@@ -444,6 +444,25 @@ class BaseRouter:
                     {"id": item.id, "data": item.data} for item in items_data
                 ]
                 result = await self.service.bulk_update(update_list)  # type: ignore
+                return success_response(data=result["data"], message=result["message"])
+            except exceptions.ValidationException as e:
+                return error_response(
+                    error_code="VALIDATION_ERROR",
+                    message=str(e.detail),
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    details=[detail.model_dump() for detail in e.error_details],
+                )
+            except exceptions.ServiceException as e:
+                return error_response(
+                    error_code="SERVICE_ERROR",
+                    message=str(e.detail),
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+
+        @self.router.post("/delete/bulk")
+        async def bulk_delete(ids: List[int]):
+            try:
+                result = await self.service.bulk_delete(ids)  # type: ignore
                 return success_response(data=result["data"], message=result["message"])
             except exceptions.ValidationException as e:
                 return error_response(

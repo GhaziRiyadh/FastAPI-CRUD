@@ -362,6 +362,18 @@ class BaseService(Generic[T]):
                 detail=f"Error searching items: {str(e)}"
             ) from e
 
+    async def bulk_delete(self, ids: List[int]):
+        try:
+            result = await self.repository.bulk_delete(ids)
+            return {
+                "data": result,
+                "message": f"Successfully deleted {result} items",
+            }
+        except Exception as e:
+            raise exceptions.ServiceException(
+                detail=f"Error searching items: {str(e)}"
+            ) from e
+
     # Validation methods to be overridden by subclasses
     async def _validate_create(self, create_data: Dict[str, Any]) -> None:
         """Validate data before creation. Override in subclasses."""

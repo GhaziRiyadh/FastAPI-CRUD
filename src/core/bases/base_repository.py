@@ -404,3 +404,24 @@ class BaseRepository(Generic[T]):
                 )
             except SQLAlchemyError as e:
                 self._handle_db_error(e, "search")
+
+    async def bulk_delete(self, ids: List[int]):
+        """Bulk soft delete items by IDs."""
+        if not hasattr(self.model, "is_deleted"):
+            raise AttributeError("Model must have 'is_deleted' field for bulk delete")
+
+        async with self.get_session() as db:
+            try:
+                result = await db.exec(
+                    select(self.model).where(self.model.id.in_(ids))  # type: ignore
+                )
+                objects = result.all()
+
+                for obj in objects:
+                    setattr(obj, "is_deleted", not getattr(obj, "is_deleted", True))
+
+                await db.commit()
+                return True
+            except SQLAlchemyError as e:
+                await db.rollback()
+                self._handle_db_error(e, "bulk_delete")
