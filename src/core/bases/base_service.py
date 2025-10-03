@@ -1,8 +1,10 @@
 from typing import Any, Dict, Generic, List, TypeVar, Union
+from unittest import result
 from pydantic import BaseModel
 
 from src.core.bases.base_repository import BaseRepository
 from src.core import exceptions
+from src.core.response.schemas import PaginatedResponse
 
 T = TypeVar("T")
 CreateSchemaType = TypeVar("CreateSchemaType", bound=BaseModel)
@@ -65,14 +67,7 @@ class BaseService(Generic[T]):
                 page=page, per_page=per_page, include_deleted=include_deleted, **filters
             )
 
-            return {
-                "items": await self._return_multi_data(result.data),
-                "total": result.total,
-                "page": result.page,
-                "per_page": result.per_page,
-                "pages": result.pages,
-                "message": result.message,
-            }
+            return await self._result_to_pagenation_response(result)
         except Exception as e:
             raise exceptions.ServiceException(
                 detail=f"Error retrieving items list: {str(e)}"
@@ -353,6 +348,20 @@ class BaseService(Generic[T]):
                 detail=f"Error in bulk creating items: {str(e)}"
             ) from e
 
+    async def search(self, query: str):
+        """Search items based on query string."""
+        try:
+            if not self.repository._search_fields:
+                raise exceptions.ServiceException(
+                    detail="Search fields not defined in repository"
+                )
+            result = await self.repository.search(query, self.repository._search_fields)
+            return await self._result_to_pagenation_response(result)
+        except Exception as e:
+            raise exceptions.ServiceException(
+                detail=f"Error searching items: {str(e)}"
+            ) from e
+
     # Validation methods to be overridden by subclasses
     async def _validate_create(self, create_data: Dict[str, Any]) -> None:
         """Validate data before creation. Override in subclasses."""
@@ -371,3 +380,13 @@ class BaseService(Generic[T]):
     async def _validate_force_delete(self, item_id: Any, existing_item: T) -> None:
         """Validate before force delete. Override in subclasses."""
         pass
+
+    async def _result_to_pagenation_response(self, result: PaginatedResponse) -> dict:
+        return {
+            "items": await self._return_multi_data(result.data),
+            "total": result.total,
+            "page": result.page,
+            "per_page": result.per_page,
+            "pages": result.pages,
+            "message": result.message,
+        }

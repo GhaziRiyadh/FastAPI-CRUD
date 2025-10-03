@@ -6,5 +6,6 @@ from src.apps.blog.models.post import Post
 
 class PostRepository(BaseRepository[Post]):
     """Post repository class."""
-    
+
     model = Post
+    _search_fields = ["title", "content"]

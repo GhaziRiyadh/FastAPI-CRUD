@@ -1,5 +1,5 @@
 from typing import Any, Callable, Dict, Generic, List, Optional, Type, TypeVar, Union
-from sqlmodel import SQLModel, func, select
+from sqlmodel import SQLModel, func, or_, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from pydantic import BaseModel
@@ -21,6 +21,7 @@ class BaseRepository(Generic[T]):
     model: Type[T]
     _options: List[Any] = []
     get_session: Callable[..., AsyncSession]
+    _search_fields: List[str] = []
 
     def __init__(self, get_session: Callable[..., AsyncSession]):
         self.get_session = get_session
@@ -46,7 +47,16 @@ class BaseRepository(Generic[T]):
 
         # Apply additional filters
         for field, value in filters.items():
-            if hasattr(self.model, field):
+            if field == "query" and value:
+                search_conditions = [
+                    getattr(self.model, field).ilike(f"%{value}%")
+                    for field in self._search_fields
+                    if hasattr(self.model, field)
+                ]
+                stmt = (
+                    stmt.where(or_(*search_conditions)) if search_conditions else stmt
+                )
+            elif hasattr(self.model, field):
                 stmt = stmt.where(getattr(self.model, field) == value)
 
         return stmt
@@ -351,3 +361,46 @@ class BaseRepository(Generic[T]):
             except SQLAlchemyError as e:
                 await db.rollback()
                 self._handle_db_error(e, "bulk_update")
+
+    async def search(
+        self, query: str, search_fields: List[str] = []
+    ) -> schemas.PaginatedResponse:  # type:ignore
+        """Search items based on query string across predefined search fields."""
+        if not search_fields:
+            search_fields = self._search_fields
+
+        async with self.get_session() as db:
+            try:
+                stmt = select(self.model).options(*self._options)
+
+                # Apply soft delete filter if applicable
+                if hasattr(self.model, "is_deleted"):
+                    stmt = stmt.where(self.model.is_deleted == False)  # type: ignore
+
+                # Build search conditions
+                search_conditions = [
+                    getattr(self.model, field).ilike(f"%{query}%")
+                    for field in search_fields
+                    if hasattr(self.model, field)
+                ]
+
+                if search_conditions:
+                    from sqlmodel import or_
+
+                    stmt = stmt.where(or_(*search_conditions))
+
+                result = await db.exec(stmt)
+                items = result.all()
+                total = len(items)
+
+                return schemas.PaginatedResponse[T](
+                    success=True,
+                    data=list(items),
+                    total=total,
+                    page=1,
+                    per_page=total,
+                    pages=1,
+                    message="Search completed successfully",
+                )
+            except SQLAlchemyError as e:
+                self._handle_db_error(e, "search")
